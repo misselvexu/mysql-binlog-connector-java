@@ -2,13 +2,13 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.github.shyiko</groupId>
+    <groupId>com.zendesk</groupId>
     <artifactId>mysql-binlog-connector-java</artifactId>
-    <version>0.0.0-SNAPSHOT</version>
+    <version>0.25.2</version>
 
     <name>mysql-binlog-connector-java</name>
     <description>MySQL Binary Log connector</description>
-    <url>https://github.com/shyiko/mysql-binlog-connector-java</url>
+    <url>https://github.com/osheroff/mysql-binlog-connector-java</url>
     <licenses>
         <license>
             <name>Apache License, Version 2.0</name>
@@ -17,15 +17,20 @@
         </license>
     </licenses>
     <scm>
-        <connection>scm:git:git@github.com:shyiko/mysql-binlog-connector-java.git</connection>
-        <developerConnection>scm:git:git@github.com:shyiko/mysql-binlog-connector-java.git</developerConnection>
-        <url>git@github.com:shyiko/mysql-binlog-connector-java.git</url>
+        <connection>scm:git:git@github.com:osheroff/mysql-binlog-connector-java.git</connection>
+        <developerConnection>scm:git:git@github.com:osheroff/mysql-binlog-connector-java.git</developerConnection>
+        <url>git@github.com:osheroff/mysql-binlog-connector-java.git</url>
     </scm>
     <developers>
         <developer>
             <id>shyiko</id>
             <email>stanley.shyiko@gmail.com</email>
             <name>Stanley Shyiko</name>
+        </developer>
+        <developer>
+            <id>osheroff</id>
+            <email>ben@gimbo.net</email>
+            <name>Ben Osheroff</name>
         </developer>
     </developers>
     <distributionManagement>
@@ -68,6 +73,18 @@
             <version>8.0.15</version>
             <scope>test</scope>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-core</artifactId>
+            <version>2.9.10</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.9.10.3</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <reporting>
@@ -86,10 +103,9 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.5.1</version>
+                <version>3.8.1</version>
                 <configuration>
-                    <source>1.6</source>
-                    <target>1.6</target>
+                    <release>8</release>
                 </configuration>
             </plugin>
             <plugin>
@@ -141,75 +157,6 @@
                     </execution>
                 </executions>
             </plugin>
-            <!--
-                unfortunately net.ju-n.maven.plugins:vagrant-maven-plugin does not support vagrant 1.1+
-                at the moment, so I'm gonna use exec-maven-plugin instead
-            -->
-            <plugin>
-                <groupId>org.codehaus.mojo</groupId>
-                <artifactId>exec-maven-plugin</artifactId>
-                <version>1.1.1</version>
-                <executions>
-                    <execution>
-                        <id>start-vagrant-vm</id>
-                        <phase>pre-integration-test</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <workingDirectory>${vagrant.integration.box}</workingDirectory>
-                            <executable>${vagrant.bin}</executable>
-                            <arguments>
-                                <argument>up</argument>
-                            </arguments>
-                            <skip>${skipTests}</skip>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>destroy-vagrant-vm</id>
-                        <phase>post-integration-test</phase>
-                        <goals>
-                            <goal>exec</goal>
-                        </goals>
-                        <configuration>
-                            <workingDirectory>${vagrant.integration.box}</workingDirectory>
-                            <executable>${vagrant.bin}</executable>
-                            <arguments>
-                                <argument>destroy</argument>
-                                <argument>--force</argument>
-                            </arguments>
-                            <skip>${skipTests}</skip>
-                        </configuration>
-                    </execution>
-                </executions>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-checkstyle-plugin</artifactId>
-                <version>2.9.1</version>
-                <configuration>
-                    <failsOnError>true</failsOnError>
-                    <configLocation>supplement/codequality/checkstyle.xml</configLocation>
-                    <headerLocation>supplement/codequality/license.header</headerLocation>
-                    <includeTestSourceDirectory>true</includeTestSourceDirectory>
-                    <consoleOutput>true</consoleOutput>
-                </configuration>
-                <executions>
-                    <execution>
-                        <phase>verify</phase>
-                        <goals>
-                            <goal>checkstyle</goal>
-                        </goals>
-                    </execution>
-                </executions>
-                <dependencies>
-                    <dependency>
-                        <groupId>com.github.shyiko</groupId>
-                        <artifactId>checkstyle-nonstandard</artifactId>
-                        <version>0.1.0</version>
-                    </dependency>
-                </dependencies>
-            </plugin>
             <plugin>
                 <groupId>com.github.shyiko.usage-maven-plugin</groupId>
                 <artifactId>usage-maven-plugin</artifactId>
@@ -219,23 +166,9 @@
                         # build everything (append "-DskipTests=true" if you wish to skip tests)
                         ./mvnw clean package
 
-                        # run unit + integration tests, validate codebase using checkstyle
+                        # run unit + integration tests
                         ./mvnw -P coverage clean verify
                         # use -Dvagrant.integration.box= to switch between MySQL sandboxes
-
-                        # for aggregated coverage over different mysql releases use
-                        ./mvnw clean
-                        ./mvnw -P coverage verify \
-                            -Dvagrant.integration.box=supplement/vagrant/mysql-5.5.27-sandbox-prepackaged
-                        ./mvnw -P coverage verify \
-                            -Dvagrant.integration.box=supplement/vagrant/mysql-5.6.12-sandbox-prepackaged
-                        ./mvnw -P coverage verify \
-                            -Dvagrant.integration.box=supplement/vagrant/mysql-5.7.15-sandbox-prepackaged
-                        ./mvnw -P coverage,mysql-8-compat verify \
-                            -Dvagrant.integration.box=supplement/vagrant/mysql-8.0.1-sandbox-prepackaged
-
-                        # submit coverage report to coveralls
-                        ./mvnw -P coverage coveralls:jacoco -DrepoToken=&lt;coveralls.io&gt;
 
                         # publish a new version
                         ./mvnw versions:set -DnewVersion=&lt;version&gt;
@@ -267,46 +200,6 @@
             </dependencies>
         </profile>
         <profile>
-            <id>coverage</id>
-            <build>
-                <plugins>
-                    <plugin>
-                        <groupId>org.jacoco</groupId>
-                        <artifactId>jacoco-maven-plugin</artifactId>
-                        <version>0.7.9</version>
-                        <configuration>
-                            <destFile>${basedir}/target/coverage-reports/jacoco-unit.exec</destFile>
-                            <dataFile>${basedir}/target/coverage-reports/jacoco-unit.exec</dataFile>
-                            <append>true</append>
-                            <excludes>
-                                <exclude>**/ClientCapabilities.*</exclude>
-                            </excludes>
-                        </configuration>
-                        <executions>
-                            <execution>
-                                <id>jacoco-initialize</id>
-                                <goals>
-                                    <goal>prepare-agent</goal>
-                                </goals>
-                            </execution>
-                            <execution>
-                                <id>jacoco-site</id>
-                                <phase>post-integration-test</phase>
-                                <goals>
-                                    <goal>report</goal>
-                                </goals>
-                            </execution>
-                        </executions>
-                    </plugin>
-                    <plugin>
-                        <groupId>org.eluder.coveralls</groupId>
-                        <artifactId>coveralls-maven-plugin</artifactId>
-                        <version>2.0.0</version>
-                    </plugin>
-                </plugins>
-            </build>
-        </profile>
-        <profile>
             <id>deploy-to-maven-central</id>
             <activation>
                 <property>
@@ -320,7 +213,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>3.0.1</version>
+                        <version>3.2.1</version>
                         <executions>
                             <execution>
                                 <id>attach-sources</id>
@@ -334,17 +227,13 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>2.10.4</version>
+                        <version>3.2.0</version>
                         <executions>
                             <execution>
                                 <id>attach-javadocs</id>
                                 <goals>
                                     <goal>jar</goal>
                                 </goals>
-                                <configuration>
-                                    <additionalparam>-Xdoclint:none</additionalparam>
-                                    <quiet>true</quiet>
-                                </configuration>
                             </execution>
                         </executions>
                     </plugin>
@@ -365,13 +254,12 @@
                     <plugin>
                         <groupId>org.sonatype.plugins</groupId>
                         <artifactId>nexus-staging-maven-plugin</artifactId>
-                        <version>1.6.7</version>
+                        <version>1.6.8</version>
                         <extensions>true</extensions>
                         <configuration>
                             <nexusUrl>https://oss.sonatype.org/</nexusUrl>
                             <serverId>maven-central</serverId>
-                            <skipStagingRepositoryClose>true</skipStagingRepositoryClose>
-                            <!--<autoReleaseAfterClose>true</autoReleaseAfterClose>-->
+                            <autoReleaseAfterClose>true</autoReleaseAfterClose>
                         </configuration>
                     </plugin>
                 </plugins>

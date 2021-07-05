@@ -32,8 +32,10 @@ import com.github.shyiko.mysql.binlog.event.deserialization.QueryEventDataDeseri
 import com.github.shyiko.mysql.binlog.io.BufferedSocketInputStream;
 import com.github.shyiko.mysql.binlog.io.ByteArrayInputStream;
 import com.github.shyiko.mysql.binlog.network.AuthenticationException;
+import com.github.shyiko.mysql.binlog.network.SSLMode;
 import com.github.shyiko.mysql.binlog.network.ServerException;
 import com.github.shyiko.mysql.binlog.network.SocketFactory;
+import com.mysql.cj.MysqlConnection;
 import org.mockito.InOrder;
 import org.testng.SkipException;
 import org.testng.annotations.AfterClass;
@@ -42,7 +44,6 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import javax.xml.bind.DatatypeConverter;
 import java.io.Closeable;
 import java.io.EOFException;
 import java.io.FilterInputStream;
@@ -62,6 +63,7 @@ import java.sql.SQLException;
 import java.sql.SQLSyntaxErrorException;
 import java.sql.Statement;
 import java.util.AbstractMap;
+import java.util.Base64;
 import java.util.BitSet;
 import java.util.Calendar;
 import java.util.List;
@@ -110,18 +112,26 @@ public class BinaryLogClientIntegrationTest {
     protected MySQLConnection master, slave;
     protected BinaryLogClient client;
     protected CountDownEventListener eventListener;
+    protected MysqlVersion mysqlVersion;
+
+    protected MysqlOnetimeServerOptions getOptions() {
+        return null;
+    }
 
     @BeforeClass
     public void setUp() throws Exception {
         TimeZone.setDefault(TimeZone.getTimeZone("GMT"));
-        ResourceBundle bundle = ResourceBundle.getBundle("jdbc");
-        String prefix = "jdbc.mysql.replication.";
-        master = new MySQLConnection(bundle.getString(prefix + "master.hostname"),
-                Integer.parseInt(bundle.getString(prefix + "master.port")),
-                bundle.getString(prefix + "master.username"), bundle.getString(prefix + "master.password"));
-        slave = new MySQLConnection(bundle.getString(prefix + "slave.hostname"),
-                Integer.parseInt(bundle.getString(prefix + "slave.port")),
-                bundle.getString(prefix + "slave.superUsername"), bundle.getString(prefix + "slave.superPassword"));
+        mysqlVersion = MysqlOnetimeServer.getVersion();
+        MysqlOnetimeServer masterServer = new MysqlOnetimeServer(getOptions());
+        MysqlOnetimeServer slaveServer = new MysqlOnetimeServer(getOptions());
+
+        masterServer.boot();
+        slaveServer.boot();
+        slaveServer.setupSlave(masterServer.getPort());
+
+        master = new MySQLConnection("127.0.0.1", masterServer.getPort(), "root", "");
+        slave = new MySQLConnection("127.0.0.1", slaveServer.getPort(), "root", "");
+
         client = new BinaryLogClient(slave.hostname, slave.port, slave.username, slave.password);
         EventDeserializer eventDeserializer = new EventDeserializer();
         eventDeserializer.setCompatibilityMode(CompatibilityMode.CHAR_AND_BINARY_AS_BYTE_ARRAY,
@@ -142,6 +152,11 @@ public class BinaryLogClientIntegrationTest {
             }
         });
         eventListener.waitFor(EventType.QUERY, 2, DEFAULT_TIMEOUT);
+
+        if ( mysqlVersion.atLeast(8, 0) ) {
+            setupMysql8Login(master);
+            eventListener.waitFor(EventType.QUERY, 2, DEFAULT_TIMEOUT);
+        }
     }
 
     @BeforeMethod
@@ -322,7 +337,7 @@ public class BinaryLogClientIntegrationTest {
         assertEquals(writeAndCaptureRow("binary", "x'01'"), new Serializable[]{new byte[] {1}});
         assertEquals(writeAndCaptureRow("binary", "x'FF'"), new Serializable[]{new byte[] {-1}});
         assertEquals(writeAndCaptureRow("binary(16)", "unhex(md5(\"glob\"))"),
-            new Serializable[]{DatatypeConverter.parseHexBinary("8684147451a6cc3b92142c6f4b78e61c")});
+            new Serializable[]{Base64.getDecoder().decode("hoQUdFGmzDuSFCxvS3jmHA==")});
     }
 
     @Test
@@ -401,6 +416,51 @@ public class BinaryLogClientIntegrationTest {
         try {
             assertEquals(writeAndCaptureRow(client, "datetime(6)", "'1989-03-21 01:02:03.123456'"), new Serializable[]{
                 generateTime(1989, 3, 21, 1, 2, 3, 123)});
+        } finally {
+            client.disconnect();
+        }
+    }
+
+    @Test
+    public void testDeserializationOfIntegerAsByteArray() throws Exception {
+        final BinaryLogClient client = new BinaryLogClient(slave.hostname, slave.port,
+            slave.username, slave.password);
+        EventDeserializer eventDeserializer = new EventDeserializer();
+        eventDeserializer.setCompatibilityMode(CompatibilityMode.INTEGER_AS_BYTE_ARRAY);
+        client.setEventDeserializer(eventDeserializer);
+        client.connect(DEFAULT_TIMEOUT);
+        try {
+            Serializable[] result;
+
+            result = writeAndCaptureRow("tinyint unsigned", "0", "1", "255");
+            assertEquals(result[0], 0);
+            assertEquals(result[1], 1);
+            assertEquals(result[2], -1);
+
+
+            result = writeAndCaptureRow("tinyint", "-128", "-1", "0", "1", "127");
+            assertEquals(result[0], -128);
+            assertEquals(result[1], -1);
+            assertEquals(result[2], 0);
+            assertEquals(result[3], 1);
+            assertEquals(result[4], 127);
+
+            result = writeAndCaptureRow("smallint unsigned", "0", "1", "65535");
+            assertEquals(result[0], 0);
+            assertEquals(result[1], 1);
+            assertEquals(result[2], -1);
+
+            result = writeAndCaptureRow("smallint", "-32768", "-1", "0", "1", "32767");
+            assertEquals(result[0], -32768);
+            assertEquals(result[1], -1);
+            assertEquals(result[2], 0);
+            assertEquals(result[3], 1);
+            assertEquals(result[4], 32767);
+
+            result = writeAndCaptureRow("mediumint unsigned", "0", "1", "16777215");
+            assertEquals(result[0], 0);
+            assertEquals(result[1], 1);
+            assertEquals(result[2], -1);
         } finally {
             client.disconnect();
         }
@@ -818,6 +878,12 @@ public class BinaryLogClientIntegrationTest {
         client.connect();
     }
 
+    @Test(expectedExceptions = IOException.class)
+    public void testExceptionIsThrownWhenTryingToConnectAlreadyConnectedClientWithTimeout() throws Exception {
+        assertTrue(client.isConnected());
+        client.connect(1000);
+    }
+
     @Test
     public void testExceptionIsThrownWhenProvidedWithWrongCredentials() throws Exception {
         BinaryLogClient binaryLogClient =
@@ -836,6 +902,7 @@ public class BinaryLogClientIntegrationTest {
         String prefix = "jdbc.mysql.replication.";
         String slaveUsername = bundle.getString(prefix + "slave.slaveUsername");
         String slavePassword = bundle.getString(prefix + "slave.slavePassword");
+
         new BinaryLogClient(slave.hostname, slave.port, slaveUsername, slavePassword).connect();
     }
 
@@ -992,6 +1059,66 @@ public class BinaryLogClientIntegrationTest {
         }
     }
 
+    private void setupMysql8Login(MySQLConnection server) throws Exception {
+        server.execute("create user 'mysql8' IDENTIFIED WITH caching_sha2_password BY 'testpass'");
+        server.execute("grant replication slave, replication client on *.* to 'mysql8'");
+    }
+
+    @Test
+    public void testMysql8Auth() throws Exception {
+        if ( !mysqlVersion.atLeast(8, 0) )
+            throw new SkipException("skipping mysql8 auth test");
+
+        BinaryLogClient client = new BinaryLogClient(master.hostname, master.port, "mysql8", "testpass");
+        client.setSSLMode(SSLMode.PREFERRED);
+        client.connect(DEFAULT_TIMEOUT);
+    }
+
+    @Test
+    public void testMysql8FastAuth() throws Exception {
+        if ( !mysqlVersion.atLeast(8, 0) )
+            throw new SkipException("skipping mysql8 auth test");
+
+        BinaryLogClient client = new BinaryLogClient(master.hostname, master.port, "mysql8", "testpass");
+        client.setSSLMode(SSLMode.PREFERRED);
+        client.connect(DEFAULT_TIMEOUT);
+
+        client.disconnect();
+
+        // this call should hit the sha2 cache
+        client.connect(DEFAULT_TIMEOUT);
+    }
+
+
+    @Test
+    public void testSHA2CachingAuthAsDefault() throws Exception {
+        if ( !mysqlVersion.atLeast(8, 0) )
+            throw new SkipException("skipping mysql8 auth test");
+
+        MysqlOnetimeServerOptions opts = new MysqlOnetimeServerOptions();
+        opts.extraParams = "--default-authentication-plugin=caching_sha2_password";
+        MysqlOnetimeServer server = new MysqlOnetimeServer(opts);
+        server.boot();
+
+        MySQLConnection cx = new MySQLConnection("127.0.0.1", server.getPort(), "root", "");
+
+        setupMysql8Login(cx);
+        BinaryLogClient c = new BinaryLogClient(cx.hostname, cx.port, "mysql8", "testpass");
+        c.setSSLMode(SSLMode.PREFERRED);
+        c.connect(DEFAULT_TIMEOUT);
+
+        server.shutDown();
+    }
+
+    @Test
+    public void testSHA2CachingWithoutSSL() throws Exception {
+        if ( !mysqlVersion.atLeast(8, 0) )
+            throw new SkipException("skipping mysql8 auth test");
+
+        BinaryLogClient client = new BinaryLogClient(master.hostname, master.port, "mysql8", "testpass");
+        client.connect(DEFAULT_TIMEOUT);
+    }
+
     @Test
     public void testMySQL8TableMetadata() throws Exception {
         master.execute("drop table if exists test_metameta");
@@ -1000,6 +1127,17 @@ public class BinaryLogClientIntegrationTest {
                 "h date, i date, j int)");
         master.execute("insert into test_metameta set j = 5");
         eventListener.waitFor(WriteRowsEventData.class, 1, DEFAULT_TIMEOUT);
+    }
+
+    @Test
+    public void testSetMasterServerId() throws Exception {
+        slave.query("SELECT @@server_id", new Callback<ResultSet>() {
+            @Override
+            public void execute(final ResultSet rs) throws SQLException {
+                rs.next();
+                assertEquals(client.getMasterServerId(), rs.getLong("@@server_id"));
+            }
+        });
     }
 
     @AfterMethod
@@ -1011,7 +1149,7 @@ public class BinaryLogClientIntegrationTest {
             public void onEvent(Event event) {
                 if (event.getHeader().getEventType() == EventType.QUERY) {
                     EventData data = event.getData();
-                    if (data != null && ((QueryEventData) data).getSql().contains("_EOS_marker")) {
+                    if (data != null && ((QueryEventData) data).getSql().toLowerCase().contains("_eos_marker")) {
                         latch.countDown();
                     }
                 }

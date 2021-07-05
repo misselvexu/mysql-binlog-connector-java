@@ -30,6 +30,7 @@ import java.util.zip.GZIPInputStream;
 
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
+import static org.testng.Assert.assertNotNull;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertTrue;
 
@@ -68,6 +69,36 @@ public class BinaryLogFileReaderIntegrationTest {
         BinaryLogFileReader reader = new BinaryLogFileReader(
                 new FileInputStream("src/test/resources/mysql-bin.checksum-crc32"), eventDeserializer);
         readAll(reader, 303);
+    }
+
+    @Test
+    public void testUnsupportedEventType() throws Exception {
+        EventDeserializer eventDeserializer = new EventDeserializer();
+
+        // mysql> SHOW BINLOG EVENTS IN 'mysql-bin.aurora-padding';
+        // +--------------------------+------+----------------+-------------+---------------------------------------+
+        // | Log_name                 | Pos  | Event_type     | End_log_pos | Info                                  |
+        // +--------------------------+------+----------------+-------------+---------------------------------------+
+        // | mysql-bin.aurora-padding |    4 | Format_desc    |         185 | Server ver: 5.7.12-log, Binlog ver: 4 |
+        // | mysql-bin.aurora-padding |  185 | Previous_gtids |         216 |                                       |
+        // | mysql-bin.aurora-padding |  216 | Anonymous_Gtid |         281 | SET @@SESSION.GTID_NEXT= 'ANONYMOUS'  |
+        // | mysql-bin.aurora-padding |  281 | Aurora_padding |        1209 | Ignorable                             |
+        // | mysql-bin.aurora-padding | 1209 | Query          |        1294 | BEGIN                                 |
+        BinaryLogFileReader reader = new BinaryLogFileReader(
+                new FileInputStream("src/test/resources/mysql-bin.aurora-padding"), eventDeserializer);
+        try {
+            for (int i = 0; i < 3; i++) {
+                assertNotNull(reader.readEvent());
+            }
+            try {
+                reader.readEvent();
+            } catch (IOException e) {
+                // this simulates the Debezium's event.processing.failure.handling.mode = warn
+            }
+            assertEquals(reader.readEvent().getHeader().getEventType(), EventType.QUERY);
+        } finally {
+            reader.close();
+        }
     }
 
     private void readAll(BinaryLogFileReader reader, int expect) throws IOException {

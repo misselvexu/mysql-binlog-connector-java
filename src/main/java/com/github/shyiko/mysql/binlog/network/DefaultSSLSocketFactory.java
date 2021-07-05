@@ -30,11 +30,11 @@ public class DefaultSSLSocketFactory implements SSLSocketFactory {
     private final String protocol;
 
     public DefaultSSLSocketFactory() {
-        this("TLSv1");
+        this("TLSv1.2");
     }
 
     /**
-     * @param protocol TLSv1, TLSv1.1 or TLSv1.2 (the last two require JDK 7+)
+     * @param protocol TLSv1, TLSv1.1 or TLSv1.2. Since JDK 11.0.11, TLSv1 and TLSv1.1 are no longer supported.
      */
     public DefaultSSLSocketFactory(String protocol) {
         this.protocol = protocol;

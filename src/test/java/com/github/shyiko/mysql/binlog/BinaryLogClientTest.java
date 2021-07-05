@@ -49,7 +49,7 @@ public class BinaryLogClientTest {
         assertEquals(binaryLogClient.getEventListeners().size(), 3);
         binaryLogClient.unregisterEventListener(traceEventListener);
         assertEquals(binaryLogClient.getEventListeners().size(), 2);
-        binaryLogClient.unregisterEventListener(CountDownEventListener.class);
+        binaryLogClient.unregisterEventListener(CapturingEventListener.class);
         assertEquals(binaryLogClient.getEventListeners().size(), 1);
     }
 
@@ -115,7 +115,7 @@ public class BinaryLogClientTest {
 
     @Test(timeOut = 15000)
     public void testDisconnectWhileBlockedByFBRead() throws Exception {
-        final BinaryLogClient binaryLogClient = new BinaryLogClient("localhost", 33060, "root", "mysql");
+        final BinaryLogClient binaryLogClient = new BinaryLogClient("localhost", 33061, "root", "mysql");
         final CountDownLatch readAttempted = new CountDownLatch(1);
         binaryLogClient.setSocketFactory(new SocketFactory() {
             @Override
@@ -144,7 +144,7 @@ public class BinaryLogClientTest {
                 try {
                     final ServerSocket serverSocket = new ServerSocket();
                     try {
-                        serverSocket.bind(new InetSocketAddress("localhost", 33060));
+                        serverSocket.bind(new InetSocketAddress("localhost", 33061));
                         socketBound.countDown();
                         serverSocket.accept(); // accept socket but do NOT send anything
                         assertTrue(readAttempted.await(3000, TimeUnit.MILLISECONDS));

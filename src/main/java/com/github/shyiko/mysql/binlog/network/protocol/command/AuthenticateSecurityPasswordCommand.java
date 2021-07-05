@@ -25,7 +25,7 @@ import java.security.NoSuchAlgorithmException;
 /**
  * @author <a href="mailto:stanley.shyiko@gmail.com">Stanley Shyiko</a>
  */
-public class AuthenticateCommand implements Command {
+public class AuthenticateSecurityPasswordCommand implements Command {
 
     private String schema;
     private String username;
@@ -34,11 +34,12 @@ public class AuthenticateCommand implements Command {
     private int clientCapabilities;
     private int collation;
 
-    public AuthenticateCommand(String schema, String username, String password, String salt) {
+    public AuthenticateSecurityPasswordCommand(String schema, String username, String password, String salt, int collation) {
         this.schema = schema;
         this.username = username;
         this.password = password;
         this.salt = salt;
+        this.collation = collation;
     }
 
     public void setClientCapabilities(int clientCapabilities) {
@@ -55,7 +56,10 @@ public class AuthenticateCommand implements Command {
         int clientCapabilities = this.clientCapabilities;
         if (clientCapabilities == 0) {
             clientCapabilities = ClientCapabilities.LONG_FLAG |
-                    ClientCapabilities.PROTOCOL_41 | ClientCapabilities.SECURE_CONNECTION;
+                ClientCapabilities.PROTOCOL_41 |
+                ClientCapabilities.SECURE_CONNECTION |
+                ClientCapabilities.PLUGIN_AUTH;
+
             if (schema != null) {
                 clientCapabilities |= ClientCapabilities.CONNECT_WITH_DB;
             }
@@ -67,19 +71,26 @@ public class AuthenticateCommand implements Command {
             buffer.write(0);
         }
         buffer.writeZeroTerminatedString(username);
-        byte[] passwordSHA1 = "".equals(password) ? new byte[0] : passwordCompatibleWithMySQL411(password, salt);
+        byte[] passwordSHA1 = passwordCompatibleWithMySQL411(password, salt);
         buffer.writeInteger(passwordSHA1.length, 1);
         buffer.write(passwordSHA1);
         if (schema != null) {
             buffer.writeZeroTerminatedString(schema);
         }
+        buffer.writeZeroTerminatedString("mysql_native_password");
         return buffer.toByteArray();
     }
 
     /**
      * see mysql/sql/password.c scramble(...)
+	 * @param password the password
+	 * @param salt salt received from server
+	 * @return hashed password
      */
     public static byte[] passwordCompatibleWithMySQL411(String password, String salt) {
+        if ( "".equals(password) || password == null )
+            return new byte[0];
+
         MessageDigest sha;
         try {
             sha = MessageDigest.getInstance("SHA-1");
@@ -87,7 +98,7 @@ public class AuthenticateCommand implements Command {
             throw new RuntimeException(e);
         }
         byte[] passwordHash = sha.digest(password.getBytes());
-        return xor(passwordHash, sha.digest(union(salt.getBytes(), sha.digest(passwordHash))));
+        return CommandUtils.xor(passwordHash, sha.digest(union(salt.getBytes(), sha.digest(passwordHash))));
     }
 
     private static byte[] union(byte[] a, byte[] b) {
@@ -96,13 +107,4 @@ public class AuthenticateCommand implements Command {
         System.arraycopy(b, 0, r, a.length, b.length);
         return r;
     }
-
-    private static byte[] xor(byte[] a, byte[] b) {
-        byte[] r = new byte[a.length];
-        for (int i = 0; i < r.length; i++) {
-            r[i] = (byte) (a[i] ^ b[i]);
-        }
-        return r;
-    }
-
 }

@@ -16,8 +16,7 @@
 package com.github.shyiko.mysql.binlog.network;
 
 /**
- * @see <a href="https://dev.mysql.com/doc/refman/5.7/en/secure-connection-options.html#option_general_ssl-mode>
- * ssl-mode</a> for the original documentation.
+ * @see <a href="https://dev.mysql.com/doc/refman/5.7/en/secure-connection-options.html#option_general_ssl-mode">* ssl-mode</a> for the original documentation.
  * @author <a href="mailto:stanley.shyiko@gmail.com">Stanley Shyiko</a>
  */
 public enum SSLMode {

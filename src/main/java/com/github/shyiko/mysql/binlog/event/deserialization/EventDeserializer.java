@@ -20,6 +20,7 @@ import com.github.shyiko.mysql.binlog.event.EventData;
 import com.github.shyiko.mysql.binlog.event.EventHeader;
 import com.github.shyiko.mysql.binlog.event.EventType;
 import com.github.shyiko.mysql.binlog.event.FormatDescriptionEventData;
+import com.github.shyiko.mysql.binlog.event.LRUCache;
 import com.github.shyiko.mysql.binlog.event.TableMapEventData;
 import com.github.shyiko.mysql.binlog.io.ByteArrayInputStream;
 
@@ -65,7 +66,7 @@ public class EventDeserializer {
         this.eventHeaderDeserializer = eventHeaderDeserializer;
         this.defaultEventDataDeserializer = defaultEventDataDeserializer;
         this.eventDataDeserializers = new IdentityHashMap<EventType, EventDataDeserializer>();
-        this.tableMapEventByTableId = new HashMap<Long, TableMapEventData>();
+        this.tableMapEventByTableId = new LRUCache<>(100, 0.75f, 10000);
         registerDefaultEventDataDeserializers();
         afterEventDataDeserializerSet(null);
     }
@@ -152,6 +153,7 @@ public class EventDeserializer {
 
     /**
      * @deprecated resolved based on FORMAT_DESCRIPTION
+	 * @param checksumType don't use this function.
      */
     @Deprecated
     public void setChecksumType(ChecksumType checksumType) {
@@ -160,6 +162,8 @@ public class EventDeserializer {
 
     /**
      * @see CompatibilityMode
+	 * @param first at least one CompatabilityMode
+	 * @param rest many modes
      */
     public void setCompatibilityMode(CompatibilityMode first, CompatibilityMode... rest) {
         this.compatibilitySet = EnumSet.of(first, rest);
@@ -199,11 +203,16 @@ public class EventDeserializer {
             deserializer.setDeserializeCharAndBinaryAsByteArray(
                 compatibilitySet.contains(CompatibilityMode.CHAR_AND_BINARY_AS_BYTE_ARRAY)
             );
+            deserializer.setDeserializeIntegerAsByteArray(
+                compatibilitySet.contains(CompatibilityMode.INTEGER_AS_BYTE_ARRAY)
+            );
         }
     }
 
     /**
      * @return deserialized event or null in case of end-of-stream
+	 * @param inputStream input stream to fetch event from
+	 * @throws IOException if connection gets closed
      */
     public Event nextEvent(ByteArrayInputStream inputStream) throws IOException {
         if (inputStream.peek() == -1) {
@@ -349,7 +358,11 @@ public class EventDeserializer {
          *
          * <p>This option is going to be enabled by default starting from mysql-binlog-connector-java@1.0.0.
          */
-        CHAR_AND_BINARY_AS_BYTE_ARRAY
+        CHAR_AND_BINARY_AS_BYTE_ARRAY,
+        /**
+         * Return TINY/SHORT/INT24/LONG/LONGLONG values as byte[]|s (instead of int|s).
+         */
+        INTEGER_AS_BYTE_ARRAY
     }
 
     /**

@@ -40,9 +40,9 @@ public class EventHeaderV4Deserializer implements EventHeaderDeserializer<EventH
         return header;
     }
 
-    private static EventType getEventType(int ordinal) throws IOException {
+    private static EventType getEventType(int ordinal) {
         if (ordinal >= EVENT_TYPES.length) {
-            throw new IOException("Unknown event type " + ordinal);
+            return EventType.UNKNOWN;
         }
         return EVENT_TYPES[ordinal];
     }

@@ -15,13 +15,11 @@
  */
 package com.github.shyiko.mysql.binlog.network;
 
-import sun.security.util.HostnameChecker;
-
 import javax.net.ssl.HostnameVerifier;
+import javax.net.ssl.SSLException;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.SSLSession;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 
 /**
@@ -30,15 +28,15 @@ import java.security.cert.X509Certificate;
 public class TLSHostnameVerifier implements HostnameVerifier {
 
     public boolean verify(String hostname, SSLSession session) {
-        HostnameChecker checker = HostnameChecker.getInstance(HostnameChecker.TYPE_TLS);
+        HostnameChecker checker = HostnameChecker.DEFAULT;
         try {
             Certificate[] peerCertificates = session.getPeerCertificates();
             if (peerCertificates.length > 0 && peerCertificates[0] instanceof X509Certificate) {
                 X509Certificate peerCertificate = (X509Certificate) peerCertificates[0];
                 try {
-                    checker.match(hostname, peerCertificate);
+                    checker.check(hostname, peerCertificate);
                     return true;
-                } catch (CertificateException ignored) {
+                } catch (SSLException ignored) {
                 }
             }
         } catch (SSLPeerUnverifiedException ignored) {

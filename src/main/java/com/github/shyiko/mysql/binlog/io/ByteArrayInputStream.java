@@ -27,10 +27,12 @@ public class ByteArrayInputStream extends InputStream {
 
     private InputStream inputStream;
     private Integer peek;
+    private Integer pos, markPosition;
     private int blockLength = -1;
 
     public ByteArrayInputStream(InputStream inputStream) {
         this.inputStream = inputStream;
+        this.pos = 0;
     }
 
     public ByteArrayInputStream(byte[] bytes) {
@@ -39,6 +41,9 @@ public class ByteArrayInputStream extends InputStream {
 
     /**
      * Read int written in little-endian format.
+	 * @param length length of the integer to read
+	 * @throws IOException in case of EOF
+	 * @return the integer from the binlog
      */
     public int readInteger(int length) throws IOException {
         int result = 0;
@@ -50,6 +55,9 @@ public class ByteArrayInputStream extends InputStream {
 
     /**
      * Read long written in little-endian format.
+	 * @param length length of the long to read
+	 * @throws IOException in case of EOF
+	 * @return the long from the binlog
      */
     public long readLong(int length) throws IOException {
         long result = 0;
@@ -61,6 +69,9 @@ public class ByteArrayInputStream extends InputStream {
 
     /**
      * Read fixed length string.
+	 * @param length length of string to read
+	 * @throws IOException in case of EOF
+	 * @return string
      */
     public String readString(int length) throws IOException {
         return new String(read(length));
@@ -68,6 +79,8 @@ public class ByteArrayInputStream extends InputStream {
 
     /**
      * Read variable-length string. Preceding packed integer indicates the length of the string.
+	 * @throws IOException in case of EOF
+	 * @return string
      */
     public String readLengthEncodedString() throws IOException {
         return readString(readPackedInteger());
@@ -75,6 +88,8 @@ public class ByteArrayInputStream extends InputStream {
 
     /**
      * Read variable-length string. End is indicated by 0x00 byte.
+	 * @throws IOException in case of EOF
+	 * @return string
      */
     public String readZeroTerminatedString() throws IOException {
         ByteArrayOutputStream s = new ByteArrayOutputStream();
@@ -126,6 +141,8 @@ public class ByteArrayInputStream extends InputStream {
 
     /**
      * @see #readPackedNumber()
+	 * @throws IOException in case of malformed number, eof, null, or long
+	 * @return integer
      */
     public int readPackedInteger() throws IOException {
         Number number = readPackedNumber();
@@ -139,12 +156,14 @@ public class ByteArrayInputStream extends InputStream {
     }
 
     /**
-     * Format (first-byte-based):<br/>
-     * 0-250 - The first byte is the number (in the range 0-250). No additional bytes are used.<br/>
-     * 251 - SQL NULL value<br/>
-     * 252 - Two more bytes are used. The number is in the range 251-0xffff.<br/>
-     * 253 - Three more bytes are used. The number is in the range 0xffff-0xffffff.<br/>
+     * Format (first-byte-based):<br>
+     * 0-250 - The first byte is the number (in the range 0-250). No additional bytes are used.<br>
+     * 251 - SQL NULL value<br>
+     * 252 - Two more bytes are used. The number is in the range 251-0xffff.<br>
+     * 253 - Three more bytes are used. The number is in the range 0xffff-0xffffff.<br>
      * 254 - Eight more bytes are used. The number is in the range 0xffffff-0xffffffffffffffff.
+	 * @throws IOException in case of malformed number or EOF
+	 * @return long or null
      */
     public Number readPackedNumber() throws IOException {
         int b = this.read();
@@ -189,6 +208,7 @@ public class ByteArrayInputStream extends InputStream {
         if (result == -1) {
             throw new EOFException();
         }
+        this.pos += 1;
         return result;
     }
 
@@ -200,6 +220,50 @@ public class ByteArrayInputStream extends InputStream {
             blockLength--;
         }
         return inputStream.read();
+    }
+
+    @Override
+    public int read(byte[] b, int off, int len) throws IOException {
+        if (b == null) {
+            throw new NullPointerException();
+        } else if (off < 0 || len < 0 || len > b.length - off) {
+            throw new IndexOutOfBoundsException();
+        } else if (len == 0) {
+            return 0;
+        }
+
+        if (peek != null) {
+            b[off] = (byte)(int)peek;
+            off += 1;
+            len -= 1;
+        }
+
+        int read = readWithinBlockBoundaries(b, off, len);
+
+        if (read > 0) {
+            this.pos += read;
+        }
+
+        if (peek != null) {
+            peek = null;
+            read = read <= 0 ? 1 : read + 1;
+        }
+
+        return read;
+    }
+
+    private int readWithinBlockBoundaries(byte[] b, int off, int len) throws IOException {
+        if (blockLength == -1) {
+            return inputStream.read(b, off, len);
+        } else if (blockLength == 0) {
+            return -1;
+        }
+
+        int read = inputStream.read(b, off, Math.min(len, blockLength));
+        if (read > 0) {
+            blockLength -= read;
+        }
+        return read;
     }
 
     @Override
@@ -218,4 +282,46 @@ public class ByteArrayInputStream extends InputStream {
         }
     }
 
+    public int getPosition() {
+        return pos;
+    }
+
+    @Override
+    public synchronized void mark(int readlimit) {
+        markPosition = pos;
+        inputStream.mark(readlimit);
+    }
+
+    @Override
+    public boolean markSupported() {
+        return inputStream.markSupported();
+    }
+
+    @Override
+    public synchronized void reset() throws IOException {
+        pos = markPosition;
+        inputStream.reset();
+    }
+
+    /**
+     * This method implements fast-forward skipping in the stream.
+     * It can be used if and only if the underlying stream is fully available till its end.
+     * In other cases the regular {@link #skip(long)} method must be used.
+     *
+     * @param n - number of bytes to skip
+     * @return number of bytes skipped
+     * @throws IOException
+     */
+    public synchronized long fastSkip(long n) throws IOException {
+        long skipOf = n;
+        if (blockLength != -1) {
+            skipOf = Math.min(blockLength, skipOf);
+            blockLength -= skipOf;
+            if (blockLength == 0) {
+                blockLength = -1;
+            }
+        }
+        pos += (int) skipOf;
+        return inputStream.skip(skipOf);
+     }
 }

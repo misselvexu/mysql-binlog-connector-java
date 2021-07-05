@@ -1,6 +1,53 @@
 # Changelog
-All notable changes to this project will be documented in this file.  
-This project adheres to [Semantic Versioning](http://semver.org/).
+
+## [0.25.2](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.25.1...0.25.2) - 2021-06-25
+
+- allow `setupConnection()` to be overridden
+- upgrade to TLS v1.2
+
+## [0.25.1](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.25.0...0.25.1) - 2021-04-20
+
+- performance improves in ByteArrayInputStream#read
+
+## [0.25.0](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.24.1...0.25.0) - 2021-03-04
+
+- bring back jdk 8 support, this caused... ahem.  Issues.
+
+## [0.24.1](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.24.0...0.24.1) - 2021-03-03
+
+- Fix for performance issues read JSON columns
+
+## [0.24.0](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.23.3...0.24.0) - 2021-02-04
+
+- Move up to JDK 11, drop support for JDK 8
+
+## [0.23.4](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.23.3...0.23.4) - 2021-01-17
+
+- correct authentication error that was causing a problem with Azure
+
+## [0.23.3](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.23.2...0.23.3) - 2020-10-29
+
+- add EventDeserializer.CompatibilityMode.INTEGER_AS_BYTE_ARRAY if you want raw integer data
+- don't crash on AWS Aurora's unknown event types
+
+## [0.23.2](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.23.1...0.23.2) - 2020-07-25
+
+- `connect` now throws `IllegalStateException` when already connected
+
+## [0.23.1](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.22.2...0.23.1) - 2020-05-25
+
+- this releases adds support for mysql 8's `caching_sha2_password` authentication method
+
+## [0.22.2](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.22.0...0.22.2) - 2020-04-29
+
+- Fix bugs in 0.22.0 involving nested JSON objects.
+
+## [0.22.0](https://github.com/osheroff/mysql-binlog-connector-java/compare/0.20.1...0.22.0) - 2020-04-24
+
+- *THIS RELEASE IS BUGGY.  DO NOT USE.*
+- master server id is exposed in the library https://github.com/shyiko/mysql-binlog-connector-java/pull/319
+- Fixes for JSON data in mysql 8.0.16+ https://github.com/shyiko/mysql-binlog-connector-java/pull/288
+- more fixes for the bizarre azure platform https://github.com/shyiko/mysql-binlog-connector-java/pull/275
 
 ## [0.21.0](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.20.1...0.21.0) - 2020-06-08
 
@@ -108,7 +155,7 @@ A side effect of this change is that throwing RuntimeException inside `onConnect
 ## [0.10.1](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.10.0...0.10.1) - 2017-02-28
 
 ### Fixed
-- HEARTBEAT tracking ([118](https://github.com/shyiko/mysql-binlog-connector-java/issues/118#issuecomment-283138143)). 
+- HEARTBEAT tracking ([118](https://github.com/shyiko/mysql-binlog-connector-java/issues/118#issuecomment-283138143)).
 
 ## [0.10.0](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.9.2...0.10.0) - 2017-02-28
 
@@ -130,13 +177,13 @@ isn't reached within `BinaryLogClient::connectTimeout` from `BinaryLogClient::co
 
 ### Fixed
 
- - NPE in case of EOF (BinaryLogClient) ([153](https://github.com/shyiko/mysql-binlog-connector-java/pull/153)).  
+ - NPE in case of EOF (BinaryLogClient) ([153](https://github.com/shyiko/mysql-binlog-connector-java/pull/153)).
 
 ## [0.9.0](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.8.1...0.9.0) - 2017-02-07
 
 ### Added
 
- - `BinaryLogClient::connectTimeout` (3 seconds by default).  
+ - `BinaryLogClient::connectTimeout` (3 seconds by default).
    NOTE: `BinaryLogClient::keepAliveConnectTimeout` has been deprecated and is going to be removed in 1.0.0.
 
 ## [0.8.1](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.8.0...0.8.1) - 2016-01-10
@@ -155,14 +202,14 @@ isn't reached within `BinaryLogClient::connectTimeout` from `BinaryLogClient::co
 
 ### Fixed
 
- - `SSLMode.PREFERRED` handling (verification against the CA is no longer enforced) ([#142](https://github.com/shyiko/mysql-binlog-connector-java/pull/142)).  
+ - `SSLMode.PREFERRED` handling (verification against the CA is no longer enforced) ([#142](https://github.com/shyiko/mysql-binlog-connector-java/pull/142)).
  NOTE: This change does NOT affect `SSLMode.VERIFY_CA` / `SSLMode.VERIFY_IDENTITY`.
 
 ## [0.7.3](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.7.2...0.7.3) - 2016-12-26
 
 ### Fixed
 
- - Handling of DATE/DATETIME/TIMESTAMP "zero" value (e.g. '0000-00-00') when 
+ - Handling of DATE/DATETIME/TIMESTAMP "zero" value (e.g. '0000-00-00') when
  `CompatibilityMode.DATE_AND_TIME_AS_LONG_MICRO` is set (false by default).
 
 ## [0.7.2](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.7.1...0.7.2) - 2016-12-26
@@ -184,7 +231,7 @@ isn't reached within `BinaryLogClient::connectTimeout` from `BinaryLogClient::co
 
 ## [0.6.0](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.5.2...0.6.0) - 2016-11-27
 
-### Added 
+### Added
  - `EventDeserializer` compatibility modes to mimic upcoming 1.0.0 event deserialization behavior ([#131](https://github.com/shyiko/mysql-binlog-connector-java/pull/131)).
 
 ## [0.5.2](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.5.1...0.5.2) - 2016-11-19
@@ -213,9 +260,9 @@ isn't reached within `BinaryLogClient::connectTimeout` from `BinaryLogClient::co
 
 ### Fixed
  - GTID "rollover".
- - binlog position tracking (`binaryLogClient.binlogPosition` is no longer updated on TABLE_MAP so that in case of 
- reconnect (using a different instance of client) table mapping (used by *RowsEventDataDeserializer|s) could be 
- reconstructed before hitting *RowsEvent. 
+ - binlog position tracking (`binaryLogClient.binlogPosition` is no longer updated on TABLE_MAP so that in case of
+ reconnect (using a different instance of client) table mapping (used by *RowsEventDataDeserializer|s) could be
+ reconstructed before hitting *RowsEvent.
 
 ## [0.4.0](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.3.3...0.4.0) - 2016-08-15
 
@@ -253,7 +300,7 @@ isn't reached within `BinaryLogClient::connectTimeout` from `BinaryLogClient::co
 
 ### Fixed
  - Possible infinite loop in case of EOF in the middle of `ByteArrayInputStream::fill`.
- 
+
 ## [0.2.3](https://github.com/shyiko/mysql-binlog-connector-java/compare/0.2.2...0.2.3) - 2015-08-31
 
 ### Fixed
@@ -280,8 +327,8 @@ isn't reached within `BinaryLogClient::connectTimeout` from `BinaryLogClient::co
 - Support for authentication via empty password ([#39](https://github.com/shyiko/mysql-binlog-connector-java/issues/39)).
 
 ### Changed
-- Server error reporting ([#37](https://github.com/shyiko/mysql-binlog-connector-java/issues/37)).  
-  WARNING: If you are using exception message to identify specific server errors - you'll need to switch to 
+- Server error reporting ([#37](https://github.com/shyiko/mysql-binlog-connector-java/issues/37)).
+  WARNING: If you are using exception message to identify specific server errors - you'll need to switch to
   `ServerException`::[errorCode](https://github.com/shyiko/mysql-binlog-connector-java/commit/1817d0ff709c65c31af9236dcc4e50cc3ad1023b#diff-0dff747d57cb3f5f0548be89a81e29f8R37) (as message no longer includes error code).
 
 ### Fixed

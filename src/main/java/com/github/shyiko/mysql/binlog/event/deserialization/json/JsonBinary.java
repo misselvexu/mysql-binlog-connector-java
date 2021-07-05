@@ -80,8 +80,6 @@ import java.nio.charset.Charset;
  * <h2>Grammar</h2>
  * The grammar of the binary representation of JSON objects are defined in the MySQL codebase in the
  * <a href="https://github.com/mysql/mysql-server/blob/5.7/sql/json_binary.h">json_binary.h</a> file:
- * <p>
- *
  * <pre>
  *   doc ::= type value
  *   type ::=
@@ -189,6 +187,7 @@ public class JsonBinary {
 
     public JsonBinary(ByteArrayInputStream contents) {
         this.reader = contents;
+        this.reader.mark(Integer.MAX_VALUE);
     }
 
     public String getString() {
@@ -262,8 +261,6 @@ public class JsonBinary {
      * <a href="https://github.com/mysql/mysql-server/blob/5.7/sql/json_binary.h">json_binary.h</a> file:
      * <h3>Grammar</h3>
      *
-     * <h3>Grammar</h3>
-     *
      * <pre>
      *   value ::=
      *       object  |
@@ -319,6 +316,10 @@ public class JsonBinary {
      */
     protected void parseObject(boolean small, JsonFormatter formatter)
             throws IOException {
+        // this is terrible, but without a decent seekable InputStream the other way seemed like
+        // a full-on rewrite
+        int objectOffset = this.reader.getPosition();
+
         // Read the header ...
         int numElements = readUnsignedIndex(Integer.MAX_VALUE, small, "number of elements in");
         int numBytes = readUnsignedIndex(Integer.MAX_VALUE, small, "size of");
@@ -397,6 +398,8 @@ public class JsonBinary {
                 }
             } else {
                 // Parse the value ...
+                this.reader.reset();
+                this.reader.fastSkip(objectOffset + entry.index);
                 parse(entry.type, formatter);
             }
         }
@@ -463,6 +466,8 @@ public class JsonBinary {
     // checkstyle, please ignore MethodLength for the next line
     protected void parseArray(boolean small, JsonFormatter formatter)
             throws IOException {
+        int arrayOffset = this.reader.getPosition();
+
         // Read the header ...
         int numElements = readUnsignedIndex(Integer.MAX_VALUE, small, "number of elements in");
         int numBytes = readUnsignedIndex(Integer.MAX_VALUE, small, "size of");
@@ -527,6 +532,9 @@ public class JsonBinary {
                 }
             } else {
                 // Parse the value ...
+                this.reader.reset();
+                this.reader.fastSkip(arrayOffset + entry.index);
+
                 parse(entry.type, formatter);
             }
         }
@@ -650,7 +658,6 @@ public class JsonBinary {
      * See the <a href=
      * "https://github.com/mysql/mysql-server/blob/e0e0ae2ea27c9bb76577664845507ef224d362e4/sql/json_binary.cc#L1034">
      * MySQL source code</a> for the logic used in this method.
-     * <p>
      * <h3>Grammar</h3>
      *
      * <pre>
@@ -946,6 +953,7 @@ public class JsonBinary {
      * to 16383, and so on...
      *
      * @return the integer value
+	 * @throws IOException if we don't encounter an end-of-int marker
      */
     protected int readVariableInt() throws IOException {
         int length = 0;

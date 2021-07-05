@@ -77,6 +77,7 @@ public class BinaryLogFileReader implements Closeable {
 
     /**
      * @return deserialized event or null in case of end-of-stream
+	 * @throws IOException if reading the event fails
      */
     public Event readEvent() throws IOException {
         return eventDeserializer.nextEvent(inputStream);

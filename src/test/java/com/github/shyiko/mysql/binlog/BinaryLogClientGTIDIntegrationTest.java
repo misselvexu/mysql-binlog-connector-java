@@ -18,6 +18,7 @@ package com.github.shyiko.mysql.binlog;
 import com.github.shyiko.mysql.binlog.event.QueryEventData;
 import com.github.shyiko.mysql.binlog.event.XidEventData;
 import com.github.shyiko.mysql.binlog.event.deserialization.EventDeserializer;
+import org.testng.SkipException;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
@@ -34,56 +35,28 @@ import static org.testng.AssertJUnit.assertNotNull;
  * @author <a href="https://github.com/osheroff">Ben Osheroff</a>
  */
 public class BinaryLogClientGTIDIntegrationTest extends BinaryLogClientIntegrationTest {
-
-    @BeforeClass
-    private void enableGTID() throws SQLException {
-        MySQLConnection[] servers = {slave, master};
-        for (MySQLConnection m : servers) {
-            m.execute(new Callback<Statement>() {
-                @Override
-                public void execute(Statement statement) throws SQLException {
-                    ResultSet rs = statement.executeQuery("select @@GLOBAL.GTID_MODE as gtid_mode");
-                    rs.next();
-                    if ("ON".equals(rs.getString("gtid_mode"))) {
-                        return;
-                    }
-                    statement.execute("SET @@GLOBAL.ENFORCE_GTID_CONSISTENCY = ON;");
-                    statement.execute("SET @@GLOBAL.GTID_MODE = OFF_PERMISSIVE;");
-                    statement.execute("SET @@GLOBAL.GTID_MODE = ON_PERMISSIVE;");
-                    statement.execute("SET @@GLOBAL.GTID_MODE = ON;");
-                }
-            }, true);
+    @Override
+    protected MysqlOnetimeServerOptions getOptions() {
+        if ( !this.mysqlVersion.atLeast(5,7) )  {
+            throw new SkipException("skipping gtid on 5.5");
         }
-    }
 
-    @AfterClass(alwaysRun = true)
-    private void disableGTID() throws SQLException {
-        MySQLConnection[] servers = {slave, master};
-        for (MySQLConnection m : servers) {
-            m.execute(new Callback<Statement>() {
-                @Override
-                public void execute(Statement statement) throws SQLException {
-                    statement.execute("SET @@GLOBAL.GTID_MODE = ON_PERMISSIVE;");
-                    statement.execute("SET @@GLOBAL.GTID_MODE = OFF_PERMISSIVE;");
-                    statement.execute("SET @@GLOBAL.GTID_MODE = OFF;");
-                    statement.execute("SET @@GLOBAL.ENFORCE_GTID_CONSISTENCY = OFF;");
-                }
-            }, true);
-        }
-        slave.execute("STOP SLAVE", "START SLAVE");
+        MysqlOnetimeServerOptions options = new MysqlOnetimeServerOptions();
+        options.gtid = true;
+        return options;
     }
 
     @Test
     public void testGTIDAdvancesStatementBased() throws Exception {
         try {
             master.execute("set global binlog_format=statement");
-            slave.execute("set global binlog_format=statement", "stop slave", "start slave");
+            slave.execute("stop slave", "set global binlog_format=statement", "start slave");
             master.reconnect();
             master.execute("use test");
             testGTIDAdvances();
         } finally {
             master.execute("set global binlog_format=row");
-            slave.execute("set global binlog_format=row", "stop slave", "start slave");
+            slave.execute("stop slave", "set global binlog_format=row", "start slave");
             master.reconnect();
             master.execute("use test");
         }

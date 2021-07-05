@@ -25,7 +25,7 @@ import java.util.List;
 /**
  * @author <a href="mailto:stanley.shyiko@gmail.com">Stanley Shyiko</a>
  */
-public class CapturingEventListener implements BinaryLogClient.EventListener {
+public class CapturingEventListener extends CountDownEventListener {
 
     private final List<Event> events = new LinkedList<Event>();
 
@@ -33,6 +33,7 @@ public class CapturingEventListener implements BinaryLogClient.EventListener {
     public void onEvent(Event event) {
         synchronized (events) {
             events.add(event);
+            super.onEvent(event);
         }
     }
 
